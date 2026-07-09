@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
-from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -13,12 +10,13 @@ CLOB_URL = "https://clob.polymarket.com"
 class CLOBSnapshotProvider:
     """Baseline provider using Polymarket CLOB /book endpoint.
 
+    Uses condition_id -> YES token_id mapping to fetch order book data.
     Only accepts markets with active=true, closed=false, enableOrderBook=true.
     """
 
     def __init__(self, token_ids: dict[str, str]) -> None:
+        """token_ids maps condition_id -> YES token_id"""
         self._token_ids = token_ids
-        self._last_provenance: dict[str, Any] = {}
 
     def get_snapshot(self, market_id: str) -> dict[str, Any]:
         token_id = self._token_ids.get(market_id)
@@ -45,19 +43,6 @@ class CLOBSnapshotProvider:
 
         mid = round((best_bid + best_ask) / 2, 6)
         spread = round(best_ask - best_bid, 6)
-
-        raw_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
-        captured_at = datetime.now(timezone.utc)
-
-        self._last_provenance = {
-            "market_id": market_id,
-            "token_id": token_id,
-            "raw_orderbook_hash": raw_hash,
-            "endpoint": url,
-            "captured_at": captured_at.isoformat(),
-            "level_count_bids": len(bids),
-            "level_count_asks": len(asks),
-        }
 
         return {
             "market_id": market_id,

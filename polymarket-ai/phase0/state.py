@@ -277,6 +277,80 @@ class EventStore:
 
         return ev
 
+    def append_with_guard(
+        self,
+        event_type: str,
+        experiment_id: str,
+        data: dict[str, Any],
+        market_id: str = "",
+        guard: callable | None = None,
+    ) -> EventSchema:
+        """Multi-process safe append with guard function.
+
+        The guard receives (events) and must return (ok, error_msg).
+        All operations happen under exclusive file lock.
+        """
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Atomic file creation
+        for attempt in range(3):
+            try:
+                fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+                os.close(fd)
+                break
+            except FileExistsError:
+                if attempt == 2:
+                    break
+                continue
+
+        fh = open(self.path, "r+b")
+        try:
+            _flock_exclusive(fh)
+            # Read all existing events
+            events: list[EventSchema] = []
+            fh.seek(0)
+            for raw_line_bytes in fh:
+                raw_line = raw_line_bytes.decode("utf-8").strip()
+                if not raw_line:
+                    continue
+                events.append(EventSchema(**json.loads(raw_line)))
+
+            # Run guard if provided
+            if guard is not None:
+                ok, msg = guard(events)
+                if not ok:
+                    raise RuntimeError(f"Guard rejected: {msg}")
+
+            # Get last hash and seq
+            last_hash = "0" * 64
+            seq = 0
+            for ev in events:
+                last_hash = ev.event_hash
+                seq = ev.event_sequence
+            seq += 1
+
+            ev = EventSchema(
+                event_type=event_type,
+                event_sequence=seq,
+                experiment_id=experiment_id,
+                market_id=market_id,
+                previous_event_hash=last_hash,
+                data=data,
+                timestamp=datetime.now(timezone.utc),
+            )
+            payload = ev.model_dump_json(exclude={"event_hash"})
+            ev.event_hash = sha256(payload.encode("utf-8")).hexdigest()
+
+            line_bytes = (ev.model_dump_json() + "\n").encode("utf-8")
+            fh.seek(0, os.SEEK_END)
+            fh.write(line_bytes)
+            fh.flush()
+            os.fsync(fh.fileno())
+        finally:
+            _flock_unlock(fh)
+            fh.close()
+        return ev
+
     def verify_sequences(self) -> list[str]:
         """Verify event sequences are contiguous (1..N, no gaps, no dupes).
 
@@ -659,18 +733,18 @@ class ExperimentStateManager:
         return ev
 
     def record_forecast_locked(self, experiment_id: str, market_id: str, lock: ForecastLock) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if not _valid_transition_market(ms, MarketStatus.FORECAST_LOCKED):
+                return False, f"cannot lock forecast for market {market_id} in state {ms}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        if self.experiment_status() == ExperimentStatus.CREATED:
-            raise RuntimeError("cannot lock forecast while experiment is CREATED")
-        self._require_active()
-        ms = self.market_status(market_id)
-        if not _valid_transition_market(ms, MarketStatus.FORECAST_LOCKED):
-            raise RuntimeError(
-                f"cannot lock forecast for market {market_id} "
-                f"in state {ms}"
-            )
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="forecast_locked",
             experiment_id=experiment_id,
             market_id=market_id,
@@ -678,33 +752,79 @@ class ExperimentStateManager:
                 "market_id": market_id,
                 "lock": lock.model_dump(mode="json"),
             },
+            guard=guard,
         )
         self._replay()
         return ev
+
+    @staticmethod
+    def _compute_market_status_from_events(events: list[EventSchema], market_id: str) -> MarketStatus | None:
+        for ev in reversed(events):
+            if ev.market_id != market_id:
+                continue
+            if ev.event_type == "audited":
+                return MarketStatus.AUDITED
+            if ev.event_type == "market_evaluated":
+                return MarketStatus.EVALUATED
+            if ev.event_type == "market_resolved":
+                return MarketStatus.RESOLVED
+            if ev.event_type == "baseline_captured":
+                return MarketStatus.BASELINE_CAPTURED
+            if ev.event_type == "price_revealed":
+                return MarketStatus.PRICE_REVEALED
+            if ev.event_type == "forecast_locked":
+                return MarketStatus.FORECAST_LOCKED
+            if ev.event_type == "market_initialized":
+                return MarketStatus.PACKAGE_READY
+        return None
+
+    @staticmethod
+    def _compute_experiment_status_from_events(events: list[EventSchema]) -> ExperimentStatus | None:
+        for ev in reversed(events):
+            if ev.event_type == "experiment_completed":
+                return ExperimentStatus.COMPLETE
+            if ev.event_type == "experiment_activated":
+                return ExperimentStatus.ACTIVE
+            if ev.event_type == "experiment_created":
+                return ExperimentStatus.CREATED
+        return None
+
+    def _require_active_from_events(self, events: list[EventSchema]) -> None:
+        status = self._compute_experiment_status_from_events(events)
+        if status is None:
+            raise RuntimeError("experiment not created")
+        if status != ExperimentStatus.ACTIVE:
+            raise RuntimeError(
+                f"experiment must be ACTIVE for mutations, got {status}"
+            )
 
     def record_price_revealed(
         self,
         experiment_id: str,
         market_id: str,
         snapshot: PriceSnapshot | None = None,
+        baseline_artifact_hash: str = "",
     ) -> EventSchema:
-        self._ensure_integrity()
-        self._replay()
-        self._require_active()
-        ms = self.market_status(market_id)
-        if not _valid_transition_market(ms, MarketStatus.PRICE_REVEALED):
-            raise RuntimeError(
-                f"cannot reveal price for market {market_id} "
-                f"in state {ms}"
-            )
-        data: dict[str, Any] = {"market_id": market_id}
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if not _valid_transition_market(ms, MarketStatus.PRICE_REVEALED):
+                return False, f"cannot reveal price for market {market_id} in state {ms}"
+            return True, ""
+
+        data: dict[str, Any] = {"market_id": market_id, "baseline_artifact_hash": baseline_artifact_hash}
         if snapshot is not None:
             data["snapshot"] = snapshot.model_dump(mode="json")
-        ev = self._store.append(
+        self._ensure_integrity()
+        ev = self._store.append_with_guard(
             event_type="price_revealed",
             experiment_id=experiment_id,
             market_id=market_id,
             data=data,
+            guard=guard,
         )
         self._replay()
         return ev
@@ -737,18 +857,20 @@ class ExperimentStateManager:
         market_id: str,
         resolution: Resolution,
     ) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if ms is None:
+                return False, f"market {market_id} not initialized"
+            if not _valid_transition_market(ms, MarketStatus.RESOLVED):
+                return False, f"cannot resolve market {market_id} in state {ms}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        self._require_active()
-        ms = self.market_status(market_id)
-        if ms is None:
-            raise RuntimeError(f"market {market_id} not initialized")
-        if not _valid_transition_market(ms, MarketStatus.RESOLVED):
-            raise RuntimeError(
-                f"cannot resolve market {market_id} "
-                f"in state {ms}"
-            )
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="market_resolved",
             experiment_id=experiment_id,
             market_id=market_id,
@@ -756,6 +878,7 @@ class ExperimentStateManager:
                 "market_id": market_id,
                 "resolution": resolution.model_dump(mode="json"),
             },
+            guard=guard,
         )
         self._replay()
         return ev
@@ -790,22 +913,25 @@ class ExperimentStateManager:
         experiment_id: str,
         market_id: str,
     ) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if ms is None:
+                return False, f"market {market_id} not initialized"
+            if not _valid_transition_market(ms, MarketStatus.BASELINE_CAPTURED):
+                return False, f"cannot capture baseline for market {market_id} in state {ms}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        self._require_active()
-        ms = self.market_status(market_id)
-        if ms is None:
-            raise RuntimeError(f"market {market_id} not initialized")
-        if not _valid_transition_market(ms, MarketStatus.BASELINE_CAPTURED):
-            raise RuntimeError(
-                f"cannot capture baseline for market {market_id} "
-                f"in state {ms}"
-            )
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="baseline_captured",
             experiment_id=experiment_id,
             market_id=market_id,
             data={"market_id": market_id},
+            guard=guard,
         )
         self._replay()
         return ev

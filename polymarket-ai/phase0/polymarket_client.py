@@ -108,6 +108,14 @@ class PolymarketClient:
         else:
             clob_tokens = []
 
+        outcomes = list(raw.get("outcomes", []))
+        yes_token = ""
+        if outcomes and clob_tokens:
+            try:
+                yes_token = PolymarketClient.resolve_yes_token(outcomes, clob_tokens)
+            except ValueError:
+                pass
+
         return MarketUniverseRecord(
             market_id=mid,
             question=question,
@@ -124,9 +132,29 @@ class PolymarketClient:
             tags=tags,
             enable_order_book=bool(raw.get("enableOrderBook", False)),
             clob_token_ids=clob_tokens,
-            outcomes=list(raw.get("outcomes", [])),
+            yes_token_id=yes_token,
+            outcomes=outcomes,
             accepting_orders=bool(raw.get("acceptingOrders", False)),
         )
+
+    @staticmethod
+    def resolve_yes_token(outcomes: list[str], clob_tokens: list[str]) -> str:
+        """Resolve the YES token from outcomes and clobTokenIds.
+
+        Returns the YES token, or raises ValueError if unambiguous mapping fails.
+        """
+        if not outcomes or not clob_tokens:
+            raise ValueError("outcomes and clobTokenIds required for YES token mapping")
+        if len(outcomes) != len(clob_tokens):
+            raise ValueError(f"outcomes count ({len(outcomes)}) != clobTokenIds count ({len(clob_tokens)})")
+        yes_idx = -1
+        for i, o in enumerate(outcomes):
+            if o.upper() in ("YES", "Y"):
+                yes_idx = i
+                break
+        if yes_idx < 0:
+            raise ValueError(f"No YES outcome found in {outcomes}")
+        return str(clob_tokens[yes_idx])
 
     @staticmethod
     def gamma_price_snapshot(market: dict[str, Any]) -> dict[str, Any] | None:

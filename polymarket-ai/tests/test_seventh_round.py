@@ -179,7 +179,7 @@ class TestBlindForecastRunnerIntegration:
         canon = clean_pkg.model_dump(mode="json")
         pkg_hash = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
         artifact = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1)
-        fc, prov = runner.run("M001", artifact, ForecastMode.BETTER_BASELINE)
+        fc, prov = runner.run("M001", artifact, ForecastMode.CHEAP_BASELINE)
         assert prov["model_id"] == "model-x"
         assert prov["model_version"] == "2.0"
         assert prov["prompt_version"] == "v2"

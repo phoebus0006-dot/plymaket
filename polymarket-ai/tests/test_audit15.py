@@ -99,13 +99,12 @@ class TestRunnerPackageValidation:
             runner = BlindForecastRunner(provider=None)
             runner.run("M001", art, ForecastMode.PRIMARY_MODEL)
 
-# Test 4: CLOB provenance sidecar
-class TestCLOBProvenance:
-    def test_provenance_stored_on_provider(self):
-        """CLOBSnapshotProvider should store provenance in _last_provenance."""
+# Test 4: CLOB token_id mapping (replaced _last_provenance with condition_id→YES_token_id)
+class TestCLOBTokenIdMapping:
+    def test_token_ids_is_empty_dict(self):
+        """CLOBSnapshotProvider accepts empty token_ids."""
         provider = CLOBSnapshotProvider(token_ids={})
-        assert hasattr(provider, "_last_provenance")
-        assert provider._last_provenance == {}
+        assert provider._token_ids == {}
 
 
 # Test 5: CLOB eligibility filtering

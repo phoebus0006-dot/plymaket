@@ -130,9 +130,26 @@ class BlindForecastRunner:
 
         # Parse and validate forecast
         forecast_obj = Forecast(**raw_output)
+
+        # Verify returned forecast identity
+        if forecast_obj.market_id != market_id:
+            raise RuntimeError(
+                f"Forecast returned market_id {forecast_obj.market_id} != requested {market_id}"
+            )
+        if forecast_obj.forecast_mode != forecast_mode:
+            raise RuntimeError(
+                f"Forecast returned mode {forecast_obj.forecast_mode} != requested {forecast_mode}"
+            )
+
         parsed_forecast_hash = hashlib.sha256(
             json.dumps(forecast_obj.model_dump(mode="json"), sort_keys=True).encode("utf-8")
         ).hexdigest()
+
+        # Verify PackageArtifact identity
+        if package_artifact.original_market_id and package_artifact.original_market_id != market_id:
+            raise RuntimeError(
+                f"PackageArtifact original_market_id {package_artifact.original_market_id} != {market_id}"
+            )
 
         provenance = {
             "model_id": self.model_id,

@@ -137,6 +137,7 @@ class MarketUniverseRecord(BaseModel):
     clob_token_ids: list[str] = Field(default_factory=list)
     outcomes: list[str] = Field(default_factory=list)
     accepting_orders: bool = False
+    yes_token_id: str = ""
 
 
 class ForecastLock(BaseModel):

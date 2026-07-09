@@ -118,20 +118,38 @@ class PriceRevealService:
 
         snapshot = PriceSnapshot(**raw) if isinstance(raw, dict) else raw
 
-        # 6. Persist snapshot (append-only)
+        # 6. Build immutable BaselineArtifact
+        captured_at = datetime.now(timezone.utc)
+        baseline_artifact = {
+            "market_id": market_id,
+            "token_id": lock.forecast_id.split("_")[0] if hasattr(lock, 'forecast_id') else "",
+            "best_bid": snapshot.bid,
+            "best_ask": snapshot.ask,
+            "mid": snapshot.mid,
+            "spread": snapshot.spread,
+            "captured_at": captured_at.isoformat(),
+            "forecast_id": lock.forecast_id if hasattr(lock, 'forecast_id') else "",
+            "forecast_version": lock.forecast_version if hasattr(lock, 'forecast_version') else 0,
+        }
+        baseline_artifact_hash = sha256(
+            json.dumps(baseline_artifact, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        baseline_artifact["artifact_hash"] = baseline_artifact_hash
+
+        # 7. Persist snapshot (append-only)
         written_path = self._persist_snapshot(market_id, experiment_id, snapshot)
         snapshot.snapshot_id = written_path.stem
 
-        # Persist CLOB provenance if available
-        if hasattr(self._provider, '_last_provenance') and self._provider._last_provenance:
-            prov_path = written_path.parent / f"{written_path.stem}_provenance.json"
-            prov_path.write_text(json.dumps(self._provider._last_provenance, indent=2), encoding="utf-8")
+        # 8. Persist immutable BaselineArtifact
+        baseline_path = written_path.parent / f"{written_path.stem}_baseline.json"
+        baseline_path.write_text(json.dumps(baseline_artifact, indent=2), encoding="utf-8")
 
-        # 7. Transition state: FORECAST_LOCKED → PRICE_REVEALED → BASELINE_CAPTURED
+        # 9. Transition state: FORECAST_LOCKED → PRICE_REVEALED → BASELINE_CAPTURED
         self._state_mgr.record_price_revealed(
             experiment_id=experiment_id,
             market_id=market_id,
             snapshot=snapshot,
+            baseline_artifact_hash=baseline_artifact_hash,
         )
         self._state_mgr.record_baseline_captured(
             experiment_id=experiment_id,
