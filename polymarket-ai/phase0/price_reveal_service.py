@@ -116,7 +116,11 @@ class PriceRevealService:
         if raw is None:
             return self._handle_no_provider(market_id, experiment_id)
 
-        snapshot = PriceSnapshot(**raw) if isinstance(raw, dict) else raw
+        from uuid import uuid4
+        snapshot_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}_{uuid4().hex[:8]}"
+        snapshot = PriceSnapshot(**raw, snapshot_id=snapshot_id) if isinstance(raw, dict) else raw
+        if isinstance(snapshot, PriceSnapshot) and not snapshot.snapshot_id:
+            snapshot.snapshot_id = snapshot_id
 
         # 6. Build immutable BaselineArtifact
         captured_at = datetime.now(timezone.utc)
@@ -137,8 +141,7 @@ class PriceRevealService:
         baseline_artifact["artifact_hash"] = baseline_artifact_hash
 
         # 7. Persist snapshot (append-only)
-        written_path = self._persist_snapshot(market_id, experiment_id, snapshot)
-        snapshot.snapshot_id = written_path.stem
+        written_path = self._persist_snapshot(market_id, experiment_id, snapshot, snapshot_id=snapshot_id)
 
         # 8. Persist immutable BaselineArtifact
         baseline_path = written_path.parent / f"{written_path.stem}_baseline.json"
@@ -306,6 +309,7 @@ class PriceRevealService:
         market_id: str,
         experiment_id: str,
         snapshot: PriceSnapshot,
+        snapshot_id: str = "",
     ) -> Path:
         """Persist snapshot to append-only artifact path.
 
@@ -315,7 +319,7 @@ class PriceRevealService:
 
         snap_dir = self._experiments_root / experiment_id / "price_snapshots" / market_id
         snap_dir.mkdir(parents=True, exist_ok=True)
-        snap_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}_{uuid4().hex[:8]}"
+        snap_id = snapshot_id or snapshot.snapshot_id or f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}_{uuid4().hex[:8]}"
         snap_path = snap_dir / f"{snap_id}.json"
         snap_path.write_text(
             json.dumps(snapshot.model_dump(mode="json"), indent=2),

@@ -47,7 +47,7 @@ class TestYESTokenMapping:
 
     def test_missing_yes_raises(self):
         """Missing YES outcome -> ValueError"""
-        with pytest.raises(ValueError, match="No YES outcome found"):
+        with pytest.raises(ValueError, match="no YES outcome"):
             PolymarketClient.resolve_yes_token(["No", "Maybe"], ["tok0", "tok1"])
 
     def test_length_mismatch_raises(self):
@@ -57,7 +57,7 @@ class TestYESTokenMapping:
 
     def test_empty_outcomes_raises(self):
         """Empty outcomes -> ValueError"""
-        with pytest.raises(ValueError, match="outcomes and clobTokenIds required"):
+        with pytest.raises(ValueError, match="no outcomes parsed"):
             PolymarketClient.resolve_yes_token([], ["tok0"])
 
     def test_single_outcome_market(self):

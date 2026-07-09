@@ -27,10 +27,11 @@ def stratify_markets(
     target_count: int = 40,
     min_count: int = 20,
     max_count: int = 50,
-    category_weight: float = 1.0,
-    horizon_weight: float = 1.0,
 ) -> tuple[list[ManifestMarketEntry], list[str]]:
     """Deterministic stratified sampling from market universe.
+
+    Uses Category, Horizon, Rule Complexity, and Liquidity Bucket
+    for four-dimension stratification.
 
     Returns (selected_markets, exclusion_reasons).
     """
@@ -79,27 +80,66 @@ def stratify_markets(
 
         passed.append(rec)
 
-    # Determine number of strata
-    categories: dict[str, list[dict[str, Any]]] = {}
+    # Compute four dimensions for each passed record
     for rec in passed:
-        cat = rec.get("category", "unknown")
-        if cat not in categories:
-            categories[cat] = []
-        categories[cat].append(rec)
+        close_str = rec.get("close_time")
+        if isinstance(close_str, str):
+            close_dt = datetime.fromisoformat(close_str)
+        else:
+            close_dt = close_str
+        if close_dt.tzinfo is None:
+            close_dt = close_dt.replace(tzinfo=_tz.utc)
+        horizon_days = max(0, (close_dt - selection_cutoff).days)
+
+        # Horizon bucket
+        if horizon_days < 30:
+            horizon_bucket = "<30"
+        elif horizon_days < 90:
+            horizon_bucket = "30-90"
+        elif horizon_days < 180:
+            horizon_bucket = "90-180"
+        else:
+            horizon_bucket = "180+"
+
+        # Rule complexity
+        rules = rec.get("resolution_rules", "")
+        if len(rules) < 100:
+            rule_complexity = "short"
+        elif len(rules) < 500:
+            rule_complexity = "medium"
+        else:
+            rule_complexity = "long"
+
+        # Liquidity bucket
+        liquidity_bucket = rec.get("liquidity_bucket", "unknown")
+
+        rec["_horizon_days"] = horizon_days
+        rec["_horizon_bucket"] = horizon_bucket
+        rec["_rule_complexity"] = rule_complexity
+        rec["_liquidity_bucket"] = liquidity_bucket
+        rec["_category"] = rec.get("category", "unknown")
+
+    # Create composite strata keys across all four dimensions
+    strata: dict[str, list[dict[str, Any]]] = {}
+    for rec in passed:
+        key = f"{rec['_category']}|{rec['_horizon_bucket']}|{rec['_rule_complexity']}|{rec['_liquidity_bucket']}"
+        if key not in strata:
+            strata[key] = []
+        strata[key].append(rec)
 
     selected: list[dict[str, Any]] = []
     total_slots = min(max_count, max(min_count, target_count))
 
-    # Distribute slots across strata proportionally, then sample deterministically
-    sorted_cats = sorted(categories.keys())
-    if sorted_cats:
-        per_cat = max(1, total_slots // len(sorted_cats))
-        remainder = total_slots - per_cat * len(sorted_cats)
+    # Distribute slots evenly across unique stratum combinations
+    sorted_keys = sorted(strata.keys())
+    if sorted_keys:
+        per_stratum = max(1, total_slots // len(sorted_keys))
+        remainder = total_slots - per_stratum * len(sorted_keys)
 
-        for i, cat in enumerate(sorted_cats):
-            pool = categories[cat]
-            pool = _deterministic_shuffle(pool, seed, salt=f"cat:{cat}")
-            slots = per_cat + (1 if i < remainder else 0)
+        for i, key in enumerate(sorted_keys):
+            pool = strata[key]
+            pool = _deterministic_shuffle(pool, seed, salt=f"stratum:{key}")
+            slots = per_stratum + (1 if i < remainder else 0)
             selected.extend(pool[:slots])
     else:
         selected = passed[:total_slots]
@@ -113,6 +153,9 @@ def stratify_markets(
             question=rec.get("question", ""),
             description=rec.get("description", ""),
             tags=rec.get("tags", []),
+            horizon_days=rec.get("_horizon_days", 0),
+            rule_complexity=rec.get("_rule_complexity", ""),
+            liquidity_bucket=rec.get("_liquidity_bucket", ""),
         )
         for rec in selected
     ]

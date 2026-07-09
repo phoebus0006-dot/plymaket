@@ -97,18 +97,8 @@ class PolymarketClient:
         norm_bytes = json.dumps(normalized, sort_keys=True).encode("utf-8")
         normalized_artifact_hash = hashlib.sha256(norm_bytes).hexdigest()
 
-        # Parse clobTokenIds (returned as string representation of a list)
-        tokens_raw = raw.get("clobTokenIds", "")
-        if isinstance(tokens_raw, str) and tokens_raw.startswith("["):
-            try:
-                parsed = ast.literal_eval(tokens_raw)
-                clob_tokens = [str(t) for t in parsed]
-            except Exception:
-                clob_tokens = []
-        else:
-            clob_tokens = []
-
-        outcomes = list(raw.get("outcomes", []))
+        outcomes = PolymarketClient._parse_json_list(raw.get("outcomes", []))
+        clob_tokens = PolymarketClient._parse_json_list(raw.get("clobTokenIds", ""))
         yes_token = ""
         if outcomes and clob_tokens:
             try:
@@ -138,22 +128,61 @@ class PolymarketClient:
         )
 
     @staticmethod
-    def resolve_yes_token(outcomes: list[str], clob_tokens: list[str]) -> str:
+    def _parse_json_list(value: Any) -> list[str]:
+        """Parse a value that may be a JSON string list, Python repr string list, or already a list."""
+        if isinstance(value, list):
+            return [str(v) for v in value]
+        if isinstance(value, str):
+            value_stripped = value.strip()
+            if value_stripped.startswith("["):
+                try:
+                    import json as _json
+                    parsed = _json.loads(value_stripped)
+                    if isinstance(parsed, list):
+                        return [str(v) for v in parsed]
+                except Exception:
+                    pass
+                try:
+                    import ast
+                    parsed = ast.literal_eval(value_stripped)
+                    if isinstance(parsed, list):
+                        return [str(v) for v in parsed]
+                except Exception:
+                    pass
+        return []
+
+    @staticmethod
+    def resolve_yes_token(outcomes_raw: Any, tokens_raw: Any) -> str:
         """Resolve the YES token from outcomes and clobTokenIds.
 
-        Returns the YES token, or raises ValueError if unambiguous mapping fails.
+        Supports outcomes as JSON string, Python repr string, or list.
+        Supports clobTokenIds as JSON string, Python repr string, or list.
+
+        Returns the YES token ID.
+        Raises ValueError if unambiguous mapping is impossible.
         """
-        if not outcomes or not clob_tokens:
-            raise ValueError("outcomes and clobTokenIds required for YES token mapping")
+        outcomes = PolymarketClient._parse_json_list(outcomes_raw)
+        clob_tokens = PolymarketClient._parse_json_list(tokens_raw)
+
+        if not outcomes:
+            raise ValueError("no outcomes parsed")
+        if not clob_tokens:
+            raise ValueError("no clobTokenIds parsed")
         if len(outcomes) != len(clob_tokens):
-            raise ValueError(f"outcomes count ({len(outcomes)}) != clobTokenIds count ({len(clob_tokens)})")
+            raise ValueError(
+                f"outcomes count ({len(outcomes)}) != clobTokenIds count ({len(clob_tokens)})"
+            )
+
         yes_idx = -1
         for i, o in enumerate(outcomes):
-            if o.upper() in ("YES", "Y"):
+            if o.strip().upper() in ("YES", "Y", "1"):
+                if yes_idx >= 0:
+                    raise ValueError(f"multiple YES outcomes found in {outcomes}")
                 yes_idx = i
-                break
+
         if yes_idx < 0:
-            raise ValueError(f"No YES outcome found in {outcomes}")
+            raise ValueError(f"no YES outcome found in {outcomes}")
+
         return str(clob_tokens[yes_idx])
 
     @staticmethod
@@ -196,3 +225,8 @@ class PolymarketClient:
         if not market:
             return None
         return self.gamma_price_snapshot(market)
+
+
+def resolve_yes_token(outcomes_raw: Any, tokens_raw: Any) -> str:
+    """Module-level convenience wrapper for PolymarketClient.resolve_yes_token."""
+    return PolymarketClient.resolve_yes_token(outcomes_raw, tokens_raw)

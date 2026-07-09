@@ -56,6 +56,9 @@ class ManifestMarketEntry(BaseModel):
     question: str = ""
     description: str = ""
     tags: list[str] = Field(default_factory=list)
+    horizon_days: int = 0
+    rule_complexity: str = ""
+    liquidity_bucket: str = ""
 
     @model_validator(mode="after")
     def _validate_market_id(self) -> ManifestMarketEntry:

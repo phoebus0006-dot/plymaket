@@ -709,18 +709,18 @@ class ExperimentStateManager:
         return ev
 
     def record_market_initialized(self, experiment_id: str, market_id: str, package: CleanForecastPackage) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if ms is not None:
+                return False, f"market {market_id} already initialized (state={ms})"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        current = self.experiment_status()
-        if current is None:
-            raise RuntimeError("experiment not created yet")
-        status = self.experiment_status()
-        if status != ExperimentStatus.ACTIVE:
-            raise RuntimeError(f"cannot initialize market in experiment state {status}")
-        ms = self.market_status(market_id)
-        if ms is not None:
-            raise RuntimeError(f"market {market_id} already initialized (state={ms})")
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="market_initialized",
             experiment_id=experiment_id,
             market_id=market_id,
@@ -728,6 +728,7 @@ class ExperimentStateManager:
                 "market_id": market_id,
                 "package": package.model_dump(mode="json"),
             },
+            guard=guard,
         )
         self._replay()
         return ev
@@ -888,22 +889,25 @@ class ExperimentStateManager:
         experiment_id: str,
         market_id: str,
     ) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if ms is None:
+                return False, f"market {market_id} not initialized"
+            if not _valid_transition_market(ms, MarketStatus.EVALUATED):
+                return False, f"cannot evaluate market {market_id} in state {ms}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        self._require_active()
-        ms = self.market_status(market_id)
-        if ms is None:
-            raise RuntimeError(f"market {market_id} not initialized")
-        if not _valid_transition_market(ms, MarketStatus.EVALUATED):
-            raise RuntimeError(
-                f"cannot evaluate market {market_id} "
-                f"in state {ms}"
-            )
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="market_evaluated",
             experiment_id=experiment_id,
             market_id=market_id,
             data={"market_id": market_id},
+            guard=guard,
         )
         self._replay()
         return ev

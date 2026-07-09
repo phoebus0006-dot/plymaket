@@ -84,20 +84,39 @@ def run_real_pilot(
 
     print(f"  {len(universe_records)} valid universe records")
 
-    # Build market_id → clob_token_id mapping for CLOB baseline capture
-    token_ids: dict[str, str] = {}
-    for r in universe_records:
-        if r.clob_token_ids:
-            token_ids[r.market_id] = r.clob_token_ids[0]
+    # Filter for CLOB-eligible markets
+    eligible_records = []
+    for rec in universe_records:
+        reasons = []
+        mid = rec.market_id
+        raw_mkt = next((m for m in raw_markets if m.get("conditionId","") == mid or m.get("id","") == mid), None)
+        if raw_mkt:
+            if not raw_mkt.get("active", False):
+                reasons.append("active=false")
+            if raw_mkt.get("closed", True):
+                reasons.append("closed=true")
+            if not raw_mkt.get("enableOrderBook", False):
+                reasons.append("enableOrderBook=false")
+            if not raw_mkt.get("acceptingOrders", False):
+                reasons.append("acceptingOrders=false")
+        if not rec.yes_token_id:
+            reasons.append("no YES token mapping")
+        if reasons:
+            _record(mid, "EXCLUDED_PRE_FORECAST", "; ".join(reasons))
+        else:
+            eligible_records.append(rec)
 
-    if len(universe_records) < 20:
-        return {"status": "INSUFFICIENT_MARKETS", "count": len(universe_records),
+    # Build market_id → clob_token_id mapping for CLOB baseline capture
+    token_ids = {r.market_id: r.clob_token_ids[0] for r in eligible_records if r.clob_token_ids}
+
+    if len(eligible_records) < 20:
+        return {"status": "INSUFFICIENT_MARKETS", "count": len(eligible_records),
                 "ledger": ledger}
 
     # ── 2. Stratified sampling ──
     cutoff = datetime.now(timezone.utc)
     entries, exclusions = generate_manifest_markets(
-        [r.model_dump(mode="json") for r in universe_records],
+        [r.model_dump(mode="json") for r in eligible_records],
         selection_cutoff=cutoff,
         seed=seed,
         target_count=target_count,
@@ -131,7 +150,7 @@ def run_real_pilot(
     sm.record_experiment_activated(experiment_id)
 
     # ── 5. Helper: package from universe record ──
-    universe_by_id = {r.market_id: r for r in universe_records}
+    universe_by_id = {r.market_id: r for r in eligible_records}
 
     def _build_pkg(mid: str, uni) -> dict[str, Any] | None:
         try:

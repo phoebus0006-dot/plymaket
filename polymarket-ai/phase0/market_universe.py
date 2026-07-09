@@ -71,6 +71,19 @@ def ingest_market_record(
         except (ValueError, TypeError):
             raise ValueError(f"Market {mid}: invalid close_time: {close_time_str}")
 
+    # Parse outcomes and clobTokenIds for YES token mapping
+    outcomes_raw = raw.get("outcomes", raw.get("outcomes", []))
+    tokens_raw = raw.get("clobTokenIds", raw.get("clobTokenIds", ""))
+
+    from .polymarket_client import PolymarketClient
+    if isinstance(outcomes_raw, list) and outcomes_raw and tokens_raw:
+        try:
+            yes_token = PolymarketClient.resolve_yes_token(outcomes_raw, tokens_raw)
+        except ValueError:
+            yes_token = ""
+    else:
+        yes_token = ""
+
     return MarketUniverseRecord(
         market_id=mid,
         question=normalized.get("question", ""),
@@ -85,6 +98,9 @@ def ingest_market_record(
         parser_version=parser_version,
         normalized_artifact_hash=normalized_artifact_hash,
         tags=normalized.get("tags", []),
+        outcomes=outcomes_raw if isinstance(outcomes_raw, list) else [],
+        clob_token_ids=[str(t) for t in (tokens_raw if isinstance(tokens_raw, list) else [])],
+        yes_token_id=yes_token,
     )
 
 
