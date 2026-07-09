@@ -152,7 +152,7 @@ class TestRunnerIdentity:
         )
         canon = clean_pkg.model_dump(mode="json")
         ph = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
-        art = PackageArtifact(package=clean_pkg, package_hash=ph)
+        art = PackageArtifact(package=clean_pkg, package_hash=ph, forecast_mode="PRIMARY_MODEL", original_market_id="M001")
 
         provider = FakeForecastProvider(overrides={"market_id": "WRONG"})
         runner = BlindForecastRunner(provider=provider)
@@ -177,7 +177,7 @@ class TestRunnerIdentity:
         provider = FakeForecastProvider(overrides={"forecast_mode": "CHEAP_BASELINE"})
         runner = BlindForecastRunner(provider=provider)
 
-        with pytest.raises(RuntimeError, match="Forecast returned mode.*CHEAP_BASELINE.*!=.*PRIMARY_MODEL"):
+        with pytest.raises(RuntimeError, match="PackageArtifact forecast_mode CHEAP_BASELINE != requested PRIMARY_MODEL"):
             runner.run("M001", art, ForecastMode.PRIMARY_MODEL)
 
     def test_matching_identity_succeeds(self):
@@ -192,7 +192,7 @@ class TestRunnerIdentity:
         )
         canon = clean_pkg.model_dump(mode="json")
         ph = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
-        art = PackageArtifact(package=clean_pkg, package_hash=ph)
+        art = PackageArtifact(package=clean_pkg, package_hash=ph, forecast_mode="PRIMARY_MODEL")
 
         provider = FakeForecastProvider()
         runner = BlindForecastRunner(provider=provider)
@@ -309,7 +309,7 @@ class TestBaselineArtifact:
         assert baseline_raw["market_id"] == "M001"
         assert baseline_raw["best_bid"] == 0.45
         assert baseline_raw["best_ask"] == 0.55
-        assert baseline_raw["mid"] == 0.50
+        assert baseline_raw["midpoint"] == 0.50
         assert baseline_raw["spread"] == 0.10
         assert baseline_raw["forecast_id"] == "M001_1"
         assert baseline_raw["forecast_version"] == 1
@@ -317,11 +317,10 @@ class TestBaselineArtifact:
         assert "captured_at" in baseline_raw
 
         # Verify hash is consistent
+        check = {k: v for k, v in baseline_raw.items() if k != "artifact_hash"}
+        check["artifact_hash"] = ""
         recomputed = hashlib.sha256(
-            json.dumps(
-                {k: v for k, v in baseline_raw.items() if k != "artifact_hash"},
-                sort_keys=True, default=str,
-            ).encode("utf-8")
+            json.dumps(check, sort_keys=True, default=str).encode("utf-8")
         ).hexdigest()
         assert baseline_raw["artifact_hash"] == recomputed
 
@@ -537,6 +536,7 @@ class TestRunnerPackageArtifact:
         art = PackageArtifact(
             package=clean_pkg,
             package_hash=ph,
+            forecast_mode="PRIMARY_MODEL",
             original_market_id="WRONG_PARENT",
         )
         provider = FakeForecastProvider()
@@ -557,7 +557,7 @@ class TestRunnerPackageArtifact:
         )
         canon = clean_pkg.model_dump(mode="json")
         ph = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
-        art = PackageArtifact(package=clean_pkg, package_hash=ph, original_market_id="")
+        art = PackageArtifact(package=clean_pkg, package_hash=ph, forecast_mode="PRIMARY_MODEL", original_market_id="")
 
         provider = FakeForecastProvider()
         runner = BlindForecastRunner(provider=provider)

@@ -98,6 +98,8 @@ def ingest_market_record(
         parser_version=parser_version,
         normalized_artifact_hash=normalized_artifact_hash,
         tags=normalized.get("tags", []),
+        enable_order_book=bool(raw.get("enableOrderBook", raw.get("enable_order_book", False))),
+        accepting_orders=bool(raw.get("acceptingOrders", raw.get("accepting_orders", False))),
         outcomes=outcomes_raw if isinstance(outcomes_raw, list) else [],
         clob_token_ids=[str(t) for t in (tokens_raw if isinstance(tokens_raw, list) else [])],
         yes_token_id=yes_token,

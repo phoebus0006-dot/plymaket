@@ -661,49 +661,59 @@ class ExperimentStateManager:
             )
 
     def record_experiment_created(self, experiment_id: str, manifest: MarketManifest) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            status = self._compute_experiment_status_from_events(events)
+            if status is not None:
+                return False, f"experiment already exists (status={status})"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        if self.experiment_status() is not None:
-            raise RuntimeError(f"experiment {experiment_id} already exists")
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="experiment_created",
             experiment_id=experiment_id,
             data={
                 "experiment_id": experiment_id,
                 "manifest": manifest.model_dump(mode="json"),
             },
+            guard=guard,
         )
         self._replay()
         return ev
 
     def record_experiment_activated(self, experiment_id: str) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            status = self._compute_experiment_status_from_events(events)
+            if status is None:
+                return False, "experiment not created yet"
+            if not _valid_transition_experiment(status, ExperimentStatus.ACTIVE):
+                return False, f"cannot activate experiment in state {status}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        current = self.experiment_status()
-        if current is None:
-            raise RuntimeError("experiment not created yet")
-        if not _valid_transition_experiment(current, ExperimentStatus.ACTIVE):
-            raise RuntimeError(f"cannot activate experiment in state {current}")
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="experiment_activated",
             experiment_id=experiment_id,
             data={},
+            guard=guard,
         )
         self._replay()
         return ev
 
     def record_experiment_completed(self, experiment_id: str) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            status = self._compute_experiment_status_from_events(events)
+            if status is None:
+                return False, "experiment not created yet"
+            if not _valid_transition_experiment(status, ExperimentStatus.COMPLETE):
+                return False, f"cannot complete experiment in state {status}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        current = self.experiment_status()
-        if current is None:
-            raise RuntimeError("experiment not created yet")
-        if not _valid_transition_experiment(current, ExperimentStatus.COMPLETE):
-            raise RuntimeError(f"cannot complete experiment in state {current}")
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="experiment_completed",
             experiment_id=experiment_id,
             data={},
+            guard=guard,
         )
         self._replay()
         return ev
@@ -831,23 +841,24 @@ class ExperimentStateManager:
         return ev
 
     def record_price_unavailable(self, experiment_id: str, market_id: str, reason: str = "") -> EventSchema:
-        self._ensure_integrity()
-        self._replay()
-        self._require_active()
-        ms = self.market_status(market_id)
-        if ms is None:
-            raise RuntimeError(f"market {market_id} not initialized")
-        if ms != MarketStatus.FORECAST_LOCKED:
-            raise RuntimeError(
-                f"cannot mark price unavailable for market {market_id} "
-                f"in state {ms} (expected FORECAST_LOCKED)"
-            )
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if ms != MarketStatus.FORECAST_LOCKED:
+                return False, f"price_unavailable requires FORECAST_LOCKED, got {ms}"
+            return True, ""
+
         data: dict[str, Any] = {"market_id": market_id, "reason": reason}
-        ev = self._store.append(
+        self._ensure_integrity()
+        ev = self._store.append_with_guard(
             event_type="price_unavailable",
             experiment_id=experiment_id,
             market_id=market_id,
             data=data,
+            guard=guard,
         )
         self._replay()
         return ev
@@ -945,22 +956,25 @@ class ExperimentStateManager:
         experiment_id: str,
         market_id: str,
     ) -> EventSchema:
+        def guard(events: list[EventSchema]) -> tuple[bool, str]:
+            try:
+                self._require_active_from_events(events)
+            except RuntimeError as e:
+                return False, str(e)
+            ms = self._compute_market_status_from_events(events, market_id)
+            if ms is None:
+                return False, f"market {market_id} not initialized"
+            if not _valid_transition_market(ms, MarketStatus.AUDITED):
+                return False, f"cannot audit market {market_id} in state {ms}"
+            return True, ""
+
         self._ensure_integrity()
-        self._replay()
-        self._require_active()
-        ms = self.market_status(market_id)
-        if ms is None:
-            raise RuntimeError(f"market {market_id} not initialized")
-        if not _valid_transition_market(ms, MarketStatus.AUDITED):
-            raise RuntimeError(
-                f"cannot audit market {market_id} "
-                f"in state {ms}"
-            )
-        ev = self._store.append(
+        ev = self._store.append_with_guard(
             event_type="audited",
             experiment_id=experiment_id,
             market_id=market_id,
             data={"market_id": market_id},
+            guard=guard,
         )
         self._replay()
         return ev

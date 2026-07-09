@@ -103,6 +103,12 @@ class BlindForecastRunner:
         # Also re-run validate_package for nested safety
         validate_package(clean_package)
 
+        # Verify mode identity
+        if package_artifact.forecast_mode and package_artifact.forecast_mode != forecast_mode.value:
+            raise RuntimeError(
+                f"PackageArtifact forecast_mode {package_artifact.forecast_mode} != requested {forecast_mode.value}"
+            )
+
         # Compute hashes
         package_hash = hashlib.sha256(
             json.dumps(clean_package, sort_keys=True, default=str).encode("utf-8")

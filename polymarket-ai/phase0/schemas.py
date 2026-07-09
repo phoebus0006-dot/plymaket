@@ -200,6 +200,30 @@ class PriceSnapshot(BaseModel):
     price_history_url: str | None = None
 
 
+class CLOBBookLevel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    price: str
+    size: str
+
+
+class BaselineArtifact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    market_id: str
+    token_id: str
+    outcome_side: str = "YES"
+    best_bid: float | None = None
+    best_ask: float | None = None
+    midpoint: float | None = None
+    spread: float | None = None
+    captured_at: TzAwareDt
+    endpoint: str = ""
+    raw_orderbook_hash: str = ""
+    mapping_artifact_hash: str = ""
+    forecast_id: str = ""
+    forecast_version: int = 0
+    artifact_hash: str = ""
+
+
 class Resolution(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -8,7 +8,7 @@ from typing import Any
 
 from .forecast_lock import compute_package_hash, parse_version
 from .package_validator import CleanForecastPackage
-from .schemas import Forecast, ForecastLock, PackageArtifact, PriceSnapshot
+from .schemas import BaselineArtifact, Forecast, ForecastLock, PackageArtifact, PriceSnapshot
 from .state import EventStore, ExperimentStateManager, MarketStatus
 
 
@@ -116,36 +116,47 @@ class PriceRevealService:
         if raw is None:
             return self._handle_no_provider(market_id, experiment_id)
 
+        # 6. Build immutable BaselineArtifact
         from uuid import uuid4
         snapshot_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}_{uuid4().hex[:8]}"
-        snapshot = PriceSnapshot(**raw, snapshot_id=snapshot_id) if isinstance(raw, dict) else raw
+        # Extract only PriceSnapshot-compatible fields from provider response
+        if isinstance(raw, dict):
+            ps_fields = {"market_id", "snapshot_timestamp", "snapshot_id", "bid", "ask", "mid", "spread", "volume", "price_history_url"}
+            clean_raw = {k: v for k, v in raw.items() if k in ps_fields}
+            snapshot = PriceSnapshot(**clean_raw, snapshot_id=snapshot_id)
+        else:
+            snapshot = raw
         if isinstance(snapshot, PriceSnapshot) and not snapshot.snapshot_id:
             snapshot.snapshot_id = snapshot_id
 
-        # 6. Build immutable BaselineArtifact
         captured_at = datetime.now(timezone.utc)
-        baseline_artifact = {
-            "market_id": market_id,
-            "token_id": lock.forecast_id.split("_")[0] if hasattr(lock, 'forecast_id') else "",
-            "best_bid": snapshot.bid,
-            "best_ask": snapshot.ask,
-            "mid": snapshot.mid,
-            "spread": snapshot.spread,
-            "captured_at": captured_at.isoformat(),
-            "forecast_id": lock.forecast_id if hasattr(lock, 'forecast_id') else "",
-            "forecast_version": lock.forecast_version if hasattr(lock, 'forecast_version') else 0,
-        }
+        prov_token_id = raw.get("token_id", "") if isinstance(raw, dict) else ""
+
+        baseline = BaselineArtifact(
+            market_id=market_id,
+            token_id=prov_token_id,
+            outcome_side="YES",
+            best_bid=snapshot.bid,
+            best_ask=snapshot.ask,
+            midpoint=snapshot.mid,
+            spread=snapshot.spread,
+            captured_at=captured_at,
+            endpoint=raw.get("endpoint", "") if isinstance(raw, dict) else "",
+            raw_orderbook_hash=raw.get("raw_orderbook_hash", "") if isinstance(raw, dict) else "",
+            forecast_id=lock.forecast_id if hasattr(lock, 'forecast_id') else "",
+            forecast_version=lock.forecast_version if hasattr(lock, 'forecast_version') else 0,
+        )
         baseline_artifact_hash = sha256(
-            json.dumps(baseline_artifact, sort_keys=True, default=str).encode("utf-8")
+            json.dumps(baseline.model_dump(mode="json"), sort_keys=True, default=str).encode("utf-8")
         ).hexdigest()
-        baseline_artifact["artifact_hash"] = baseline_artifact_hash
+        baseline.artifact_hash = baseline_artifact_hash
 
         # 7. Persist snapshot (append-only)
         written_path = self._persist_snapshot(market_id, experiment_id, snapshot, snapshot_id=snapshot_id)
 
         # 8. Persist immutable BaselineArtifact
         baseline_path = written_path.parent / f"{written_path.stem}_baseline.json"
-        baseline_path.write_text(json.dumps(baseline_artifact, indent=2), encoding="utf-8")
+        baseline_path.write_text(baseline.model_dump_json(indent=2), encoding="utf-8")
 
         # 9. Transition state: FORECAST_LOCKED → PRICE_REVEALED → BASELINE_CAPTURED
         self._state_mgr.record_price_revealed(

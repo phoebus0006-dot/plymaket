@@ -107,7 +107,7 @@ def run_real_pilot(
             eligible_records.append(rec)
 
     # Build market_id → clob_token_id mapping for CLOB baseline capture
-    token_ids = {r.market_id: r.clob_token_ids[0] for r in eligible_records if r.clob_token_ids}
+    token_ids = {r.market_id: r.yes_token_id for r in eligible_records if r.yes_token_id}
 
     if len(eligible_records) < 20:
         return {"status": "INSUFFICIENT_MARKETS", "count": len(eligible_records),
@@ -199,7 +199,9 @@ def run_real_pilot(
         pkg_hash = hashlib.sha256(
             json.dumps(canon, sort_keys=True, default=str).encode("utf-8")
         ).hexdigest()
-        pkg_art = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1)
+        pkg_art = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1,
+                                  forecast_mode=ForecastMode.PRIMARY_MODEL.value,
+                                  original_market_id=mid)
         pkg_path.write_text(pkg_art.model_dump_json(indent=2), encoding="utf-8")
 
         # ── Forecast (real model call) ──
@@ -259,7 +261,7 @@ def run_real_pilot(
             sm.record_forecast_locked(experiment_id, mid, lock_obj)
 
             # ── Real baseline capture ──
-            snap_provider = CLOBSnapshotProvider(token_ids=token_ids)
+            snap_provider = CLOBSnapshotProvider(token_ids=token_ids, output_dir=str(experiments_root))
             svc = PriceRevealService(
                 state_mgr=sm,
                 experiments_root=str(experiments_root),

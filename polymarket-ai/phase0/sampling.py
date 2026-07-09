@@ -144,6 +144,14 @@ def stratify_markets(
     else:
         selected = passed[:total_slots]
 
+    # Guarantee not to exceed max_count
+    if len(selected) > max_count:
+        selected = selected[:max_count]
+
+    # Guarantee not to exceed target_count
+    if len(selected) > target_count:
+        selected = selected[:target_count]
+
     # Reshuffle final selection deterministically
     selected = _deterministic_shuffle(selected, seed, salt="final")
 
