@@ -122,6 +122,11 @@ class PriceRevealService:
         written_path = self._persist_snapshot(market_id, experiment_id, snapshot)
         snapshot.snapshot_id = written_path.stem
 
+        # Persist CLOB provenance if available
+        if hasattr(self._provider, '_last_provenance') and self._provider._last_provenance:
+            prov_path = written_path.parent / f"{written_path.stem}_provenance.json"
+            prov_path.write_text(json.dumps(self._provider._last_provenance, indent=2), encoding="utf-8")
+
         # 7. Transition state: FORECAST_LOCKED → PRICE_REVEALED → BASELINE_CAPTURED
         self._state_mgr.record_price_revealed(
             experiment_id=experiment_id,

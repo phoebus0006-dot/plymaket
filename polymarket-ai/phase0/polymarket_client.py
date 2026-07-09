@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -96,6 +97,17 @@ class PolymarketClient:
         norm_bytes = json.dumps(normalized, sort_keys=True).encode("utf-8")
         normalized_artifact_hash = hashlib.sha256(norm_bytes).hexdigest()
 
+        # Parse clobTokenIds (returned as string representation of a list)
+        tokens_raw = raw.get("clobTokenIds", "")
+        if isinstance(tokens_raw, str) and tokens_raw.startswith("["):
+            try:
+                parsed = ast.literal_eval(tokens_raw)
+                clob_tokens = [str(t) for t in parsed]
+            except Exception:
+                clob_tokens = []
+        else:
+            clob_tokens = []
+
         return MarketUniverseRecord(
             market_id=mid,
             question=question,
@@ -111,7 +123,7 @@ class PolymarketClient:
             normalized_artifact_hash=normalized_artifact_hash,
             tags=tags,
             enable_order_book=bool(raw.get("enableOrderBook", False)),
-            clob_token_ids=list(raw.get("clobTokenIds", [])),
+            clob_token_ids=clob_tokens,
             outcomes=list(raw.get("outcomes", [])),
             accepting_orders=bool(raw.get("acceptingOrders", False)),
         )

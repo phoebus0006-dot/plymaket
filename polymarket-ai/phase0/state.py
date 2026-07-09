@@ -218,11 +218,16 @@ class EventStore:
         Returns the newly created EventSchema (with computed event_hash).
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Atomic file creation to avoid multi-process race
-        if not self.path.is_file():
-            fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
-            os.close(fd)
+        # Atomic file creation — retry on race
+        for attempt in range(3):
+            try:
+                fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+                os.close(fd)
+                break
+            except FileExistsError:
+                if attempt == 2:
+                    break
+                continue
         fh = open(self.path, "r+b")
 
         try:

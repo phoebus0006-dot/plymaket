@@ -193,7 +193,7 @@ def run_real_pilot(
                 runner_version="1.0.0",
             )
             try:
-                fc, provenance = runner.run(mid, canon, ForecastMode.CHEAP_BASELINE)
+                fc, provenance = runner.run(mid, pkg_art, ForecastMode.PRIMARY_MODEL)
             except Exception as e:
                 _record(mid, "PIPELINE_FAILED", f"model call: {e}")
                 continue
@@ -225,9 +225,9 @@ def run_real_pilot(
                     experiments_root=str(experiments_root),
                     experiment_id=experiment_id,
                     market_id=mid,
-                    package=canon,
+                    package=pkg_art.package.model_dump(mode="json"),
                     forecast=fc,
-                    forecast_mode=ForecastMode.CHEAP_BASELINE,
+                    forecast_mode=fc.forecast_mode,
                 )
             except Exception as e:
                 _record(mid, "PIPELINE_FAILED", f"lock: {e}")

@@ -18,6 +18,7 @@ class CLOBSnapshotProvider:
 
     def __init__(self, token_ids: dict[str, str]) -> None:
         self._token_ids = token_ids
+        self._last_provenance: dict[str, Any] = {}
 
     def get_snapshot(self, market_id: str) -> dict[str, Any]:
         token_id = self._token_ids.get(market_id)
@@ -46,6 +47,17 @@ class CLOBSnapshotProvider:
         spread = round(best_ask - best_bid, 6)
 
         raw_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+        captured_at = datetime.now(timezone.utc)
+
+        self._last_provenance = {
+            "market_id": market_id,
+            "token_id": token_id,
+            "raw_orderbook_hash": raw_hash,
+            "endpoint": url,
+            "captured_at": captured_at.isoformat(),
+            "level_count_bids": len(bids),
+            "level_count_asks": len(asks),
+        }
 
         return {
             "market_id": market_id,

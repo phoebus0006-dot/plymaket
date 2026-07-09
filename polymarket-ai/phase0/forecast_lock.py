@@ -76,6 +76,15 @@ def lock_forecast(
     ``<forecasts>/<market_id>/v{version}.json`` to verify it exists,
     then builds and returns the lock.  Does NOT write anything.
     """
+    # Verify argument consistency BEFORE reading disk
+    arg_violations = []
+    if market_id != forecast.market_id:
+        arg_violations.append(f"arg market_id {market_id} != forecast.market_id {forecast.market_id}")
+    if forecast_mode != forecast.forecast_mode:
+        arg_violations.append(f"arg forecast_mode {forecast_mode} != forecast.forecast_mode {forecast.forecast_mode}")
+    if arg_violations:
+        raise RuntimeError(f"Lock forecast argument consistency check failed: {'; '.join(arg_violations)}")
+
     forecasts_dir = Path(experiments_root) / experiment_id / "forecasts" / market_id
     latest_ver = find_latest_version(forecasts_dir)
     if latest_ver == 0:

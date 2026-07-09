@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .schemas import Forecast, ForecastMode, PackageArtifact
+from .forecast_lock import compute_package_hash
+from .package_validator import validate_package
 
 
 class ForecastProvider(Protocol):
@@ -35,6 +37,21 @@ class BlindForecastRunner:
         self.model_version = model_version
         self.prompt_version = prompt_version
         self.runner_version = runner_version
+
+    def _taint_audit(self, data: Any, path: str = "") -> list[str]:
+        """Recursively scan for forbidden market signal fields."""
+        forbidden = {"bid", "ask", "mid", "spread", "volume", "price", "bestBid", "bestAsk", "best_bid", "best_ask", "outcomePrices", "lastTradePrice", "market_price", "current_price"}
+        violations = []
+        if isinstance(data, dict):
+            for key, val in data.items():
+                norm = key.lower().replace("-", "_").replace(" ", "_")
+                if norm in forbidden:
+                    violations.append(f"{path}.{key}")
+                violations.extend(self._taint_audit(val, f"{path}.{key}" if path else key))
+        elif isinstance(data, list):
+            for i, val in enumerate(data):
+                violations.extend(self._taint_audit(val, f"{path}[{i}]"))
+        return violations
 
     def run(
         self,
@@ -78,12 +95,13 @@ class BlindForecastRunner:
                 f"market_id mismatch: run({market_id}) vs package({clean_market_id})"
             )
 
-        # Taint audit: reject if any price field found
-        for field in ("price", "bid", "ask", "mid", "spread", "volume", "price_history_url"):
-            if field in clean_package:
-                raise RuntimeError(
-                    f"Taint detected in clean package for {market_id}: field '{field}' present"
-                )
+        # Taint audit: comprehensive recursive scan
+        taint = self._taint_audit(clean_package)
+        if taint:
+            raise RuntimeError(f"Package taint detected: {', '.join(taint)}")
+
+        # Also re-run validate_package for nested safety
+        validate_package(clean_package)
 
         # Compute hashes
         package_hash = hashlib.sha256(
