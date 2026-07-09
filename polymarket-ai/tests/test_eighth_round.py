@@ -239,7 +239,7 @@ class TestRealisticDataPipeline:
         provider = FixtureForecastProvider("tests/fixtures/forecast_outputs.json")
         # Need fixture data matching REAL-M001 — use SIM001 mapping
         runner = BlindForecastRunner(provider=provider, model_id="e2e-test", model_version="1.0")
-        fc, prov = runner.run(market_id, canon, ForecastMode.CHEAP_BASELINE)
+        fc, prov = runner.run(market_id, art, ForecastMode.CHEAP_BASELINE)
         assert prov["package_hash"] == pkg_hash
 
         # Write forecast artifact (without provenance — Forecast schema forbids extra fields)

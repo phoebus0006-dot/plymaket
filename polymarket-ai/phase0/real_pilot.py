@@ -20,36 +20,7 @@ from .schemas import (
 from .forecast_lock import lock_forecast
 from .blind_forecast_runner import BlindForecastRunner
 from .price_reveal_service import PriceRevealService
-
-
-class LiveSnapshotProvider:
-    """Wraps PolymarketClient as a snapshot provider for PriceRevealService.
-
-    Uses condition_id → numeric_id mapping to query the Gamma API correctly.
-    """
-
-    def __init__(self, client: PolymarketClient, numeric_ids: dict[str, int] | None = None) -> None:
-        self._client = client
-        self._numeric_ids = numeric_ids or {}
-
-    def get_snapshot(self, market_id: str) -> dict[str, Any]:
-        # Try fetching via numeric ID for Gamma API compatibility
-        numeric_id = self._numeric_ids.get(market_id)
-        if numeric_id is not None:
-            api_url = f"{self._client.base_url}/markets/{numeric_id}"
-            import requests
-            resp = requests.get(api_url, timeout=self._client.timeout)
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list):
-                    data = data[0] if data else None
-                if data:
-                    snap = PolymarketClient.gamma_price_snapshot(data)
-                    if snap:
-                        return snap
-
-        # Fallback: use condition_id directly
-        return self._client.fetch_market_snapshot(market_id)
+from .clob_provider import CLOBSnapshotProvider
 
 
 def run_real_pilot(
@@ -93,14 +64,6 @@ def run_real_pilot(
     client = PolymarketClient()
     raw_markets = client.fetch_markets(limit=100, closed=False)
 
-    # Build condition_id → numeric_id mapping for baseline capture
-    numeric_ids: dict[str, int] = {}
-    for m in raw_markets:
-        cid = m.get("conditionId", m.get("condition_id", "")).strip()
-        nid = m.get("id")
-        if cid and nid:
-            numeric_ids[cid] = int(nid)
-
     # Filter out sports markets
     sports_keywords = ["NBA", "NFL", "NHL", "MLB", "FIFA", "UFC", "NCAA", "EPL", "NCAAB"]
     raw_markets = [
@@ -121,12 +84,18 @@ def run_real_pilot(
 
     print(f"  {len(universe_records)} valid universe records")
 
+    # Build market_id → clob_token_id mapping for CLOB baseline capture
+    token_ids: dict[str, str] = {}
+    for r in universe_records:
+        if r.clob_token_ids:
+            token_ids[r.market_id] = r.clob_token_ids[0]
+
     if len(universe_records) < 20:
         return {"status": "INSUFFICIENT_MARKETS", "count": len(universe_records),
                 "ledger": ledger}
 
     # ── 2. Stratified sampling ──
-    cutoff = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    cutoff = datetime.now(timezone.utc)
     entries, exclusions = generate_manifest_markets(
         [r.model_dump(mode="json") for r in universe_records],
         selection_cutoff=cutoff,
@@ -271,7 +240,7 @@ def run_real_pilot(
             sm.record_forecast_locked(experiment_id, mid, lock_obj)
 
             # ── Real baseline capture ──
-            snap_provider = LiveSnapshotProvider(client, numeric_ids=numeric_ids)
+            snap_provider = CLOBSnapshotProvider(token_ids=token_ids)
             svc = PriceRevealService(
                 state_mgr=sm,
                 experiments_root=str(experiments_root),

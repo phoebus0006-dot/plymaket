@@ -23,6 +23,7 @@ class ForecastMode(str, Enum):
     CHEAP_BASELINE = "CHEAP_BASELINE"
     BETTER_BASELINE = "BETTER_BASELINE"
     FULL_RESEARCH = "FULL_RESEARCH"
+    PRIMARY_MODEL = "PRIMARY_MODEL"
 
 
 class ConfidenceLevel(str, Enum):
@@ -132,6 +133,10 @@ class MarketUniverseRecord(BaseModel):
     parser_version: str = ""
     normalized_artifact_hash: str = ""
     tags: list[str] = Field(default_factory=list)
+    enable_order_book: bool = False
+    clob_token_ids: list[str] = Field(default_factory=list)
+    outcomes: list[str] = Field(default_factory=list)
+    accepting_orders: bool = False
 
 
 class ForecastLock(BaseModel):
@@ -162,7 +167,7 @@ class Forecast(BaseModel):
     counterarguments: list[str] = Field(default_factory=list)
     critical_unknowns: list[str] = Field(default_factory=list)
     rules_confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
-    research_cost_usd: float = 0.0
+    research_cost_usd: float | None = None
     latency_seconds: float = 0.0
 
     @model_validator(mode="after")

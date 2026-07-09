@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+import hashlib
 from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
 from phase0.blind_forecast_runner import BlindForecastRunner
+from phase0.package_validator import validate_package
 from phase0.sampling import generate_manifest_markets, stratify_markets
 from phase0.schemas import (
     MarketUniverseRecord,
@@ -132,7 +134,11 @@ class TestBlindForecastRunner:
             "outcomes": ["Yes", "No"],
             "package_created_at": datetime.now(timezone.utc).isoformat(),
         }
-        fc, prov = runner.run("M001", pkg, ForecastMode.CHEAP_BASELINE)
+        clean_pkg = validate_package(pkg)
+        canon = clean_pkg.model_dump(mode="json")
+        pkg_hash = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
+        artifact = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1)
+        fc, prov = runner.run("M001", artifact, ForecastMode.CHEAP_BASELINE)
         assert fc.p_yes == 0.63
         assert prov["model_id"] == "test-model"
         assert prov["package_hash"] != ""
@@ -151,8 +157,12 @@ class TestBlindForecastRunner:
             "outcomes": ["Yes", "No"],
             "package_created_at": datetime.now(timezone.utc).isoformat(),
         }
+        clean_pkg = validate_package(pkg)
+        canon = clean_pkg.model_dump(mode="json")
+        pkg_hash = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
+        artifact = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1)
         # Runner only receives clean_package, no market baseline data
-        fc, prov = runner.run("M001", pkg, ForecastMode.CHEAP_BASELINE)
+        fc, prov = runner.run("M001", artifact, ForecastMode.CHEAP_BASELINE)
         assert fc.market_id == "M001"
 
 

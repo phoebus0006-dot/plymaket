@@ -89,7 +89,24 @@ def lock_forecast(
         )
 
     raw_forecast: dict[str, Any] = json.loads(latest_path.read_text(encoding="utf-8"))
-    Forecast(**raw_forecast)  # validate schema
+    disk_forecast = Forecast(**raw_forecast)  # validate schema
+
+    # Verify disk artifact matches input forecast
+    violations = []
+    if disk_forecast.market_id != forecast.market_id:
+        violations.append(f"disk market_id {disk_forecast.market_id} != input {forecast.market_id}")
+    if abs(disk_forecast.p_yes - forecast.p_yes) > 0.0001:
+        violations.append(f"disk p_yes {disk_forecast.p_yes} != input {forecast.p_yes}")
+    if disk_forecast.forecast_cutoff != forecast.forecast_cutoff:
+        violations.append("forecast_cutoff mismatch")
+    if disk_forecast.forecast_mode != forecast.forecast_mode:
+        violations.append("forecast_mode mismatch")
+    disk_hash = sha256(json.dumps(raw_forecast, sort_keys=True).encode()).hexdigest()
+    input_hash = sha256(json.dumps(forecast.model_dump(mode="json"), sort_keys=True).encode()).hexdigest()
+    if disk_hash != input_hash:
+        violations.append("canonical hash mismatch")
+    if violations:
+        raise RuntimeError(f"Lock forecast consistency check failed: {'; '.join(violations)}")
 
     # Compute package_hash from the raw package dict.
     # PriceRevealService._verify_package_hash uses the raw dict from the file.

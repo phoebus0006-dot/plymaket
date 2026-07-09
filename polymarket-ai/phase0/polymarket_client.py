@@ -110,6 +110,10 @@ class PolymarketClient:
             parser_version="gamma-v1",
             normalized_artifact_hash=normalized_artifact_hash,
             tags=tags,
+            enable_order_book=bool(raw.get("enableOrderBook", False)),
+            clob_token_ids=list(raw.get("clobTokenIds", [])),
+            outcomes=list(raw.get("outcomes", [])),
+            accepting_orders=bool(raw.get("acceptingOrders", False)),
         )
 
     @staticmethod

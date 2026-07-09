@@ -11,12 +11,10 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 
 class PrimaryForecastModel:
-    """Primary instruction-following forecast model.
+    """Primary instruction-tuned forecast model.
 
-    Uses google/flan-t5-small (77M params) — a genuine instruction-tuned
-    transformer that generates probability outputs by following the prompt.
-
-    Model ID: flan-t5-small-forecast-v1
+    Uses google/flan-t5-small. NO hash-based probability fallback.
+    If the model output is not a valid probability, the call raises RuntimeError.
     """
 
     MODEL_ID = "flan-t5-small-forecast-v1"
@@ -35,7 +33,6 @@ Respond with a single number between 0 and 1:"""
         self._tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
         self._model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-small")
         self._model.eval()
-        self._call_count = 0
 
     def forecast(self, market_id: str, clean_package: dict[str, Any]) -> dict[str, Any]:
         question = clean_package.get("question", "")[:300]
@@ -44,8 +41,8 @@ Respond with a single number between 0 and 1:"""
 
         prompt = self.PROMPT_TEMPLATE.format(
             question=question,
-            description=description if description else "Not available.",
-            resolution_rules=resolution_rules if resolution_rules else "Standard market resolution.",
+            description=description or "Not available.",
+            resolution_rules=resolution_rules or "Standard market resolution.",
         )
 
         start = time.time()
@@ -63,47 +60,38 @@ Respond with a single number between 0 and 1:"""
         except Exception as e:
             raise RuntimeError(f"Primary model inference failed for {market_id}: {e}")
 
-        self._call_count += 1
-
-        # Parse probability from model output
-        p_yes = self._extract_probability(generated)
-        cost = round(latency * 0.00001, 6)
-
-        half_50 = 0.04
-        half_80 = 0.10
+        # Parse probability from model output — NO hash fallback
+        p_yes = self._extract_probability(generated, market_id)
 
         return {
             "market_id": market_id,
             "forecast_cutoff": datetime.now(timezone.utc).isoformat(),
-            "forecast_mode": "CHEAP_BASELINE",
+            "forecast_mode": "PRIMARY_MODEL",
             "p_yes": round(p_yes, 4),
-            "interval_50": [round(max(0.0, p_yes - half_50), 4), round(min(1.0, p_yes + half_50), 4)],
-            "interval_80": [round(max(0.0, p_yes - half_80), 4), round(min(1.0, p_yes + half_80), 4)],
+            "interval_50": [round(max(0.0, p_yes - 0.04), 4), round(min(1.0, p_yes + 0.04), 4)],
+            "interval_80": [round(max(0.0, p_yes - 0.10), 4), round(min(1.0, p_yes + 0.10), 4)],
             "top_drivers": ["Primary instruction-tuned model (flan-t5-small)"],
             "counterarguments": ["Small model — may lack nuanced reasoning"],
-            "critical_unknowns": ["Larger instruction-tuned model for production"],
+            "critical_unknowns": ["Larger instruction-tuned model needed for production"],
             "rules_confidence": "LOW",
-            "research_cost_usd": cost,
+            "research_cost_usd": None,
             "latency_seconds": round(latency, 3),
         }
 
     @staticmethod
-    def _extract_probability(text: str) -> float:
-        """Extract a probability from model-generated text."""
-        # Direct number parsing
+    def _extract_probability(text: str, market_id: str) -> float:
+        """Extract a valid probability from model output. Raises RuntimeError on failure."""
         nums = re.findall(r"0\.\d+|1\.0|^0$|^1$", text.strip())
         if nums:
             val = float(nums[0])
             if 0.0 <= val <= 1.0:
                 return val
-        # Try the whole string as a number
         try:
             val = float(text.strip())
             if 0.0 <= val <= 1.0:
                 return val
         except ValueError:
             pass
-        # Fallback: hash-based deterministic
-        import hashlib
-        h = hashlib.sha256(text.encode()).hexdigest()
-        return round((int(h[:8], 16) % 91 + 5) / 100.0, 4)
+        raise RuntimeError(
+            f"Primary model output for {market_id} is not a valid probability: '{text[:80]}'"
+        )

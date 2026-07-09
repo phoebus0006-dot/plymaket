@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-from .schemas import Forecast, ForecastMode
+from .schemas import Forecast, ForecastMode, PackageArtifact
 
 
 class ForecastProvider(Protocol):
@@ -39,14 +39,14 @@ class BlindForecastRunner:
     def run(
         self,
         market_id: str,
-        clean_package: dict[str, Any],
+        package_artifact: PackageArtifact,
         forecast_mode: ForecastMode = ForecastMode.CHEAP_BASELINE,
     ) -> tuple[Forecast, dict[str, Any]]:
         """Run forecast in isolation.
 
         Args:
             market_id: Target market ID.
-            clean_package: The CleanForecastPackage dict (from validated PackageArtifact).
+            package_artifact: Validated PackageArtifact with CleanForecastPackage inside.
             forecast_mode: Forecast mode.
 
         Returns:
@@ -58,6 +58,33 @@ class BlindForecastRunner:
         Raises:
             RuntimeError: If any isolation boundary is violated.
         """
+        # Extract clean package dict
+        clean_package = package_artifact.package.model_dump(mode="json")
+
+        # Verify artifact hash
+        computed_hash = hashlib.sha256(
+            json.dumps(clean_package, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        if computed_hash != package_artifact.package_hash:
+            raise RuntimeError(
+                f"Package hash mismatch for {market_id}: "
+                f"computed={computed_hash}, artifact={package_artifact.package_hash}"
+            )
+
+        # Verify market_id matches
+        clean_market_id = clean_package.get("market_id", "")
+        if clean_market_id != market_id:
+            raise RuntimeError(
+                f"market_id mismatch: run({market_id}) vs package({clean_market_id})"
+            )
+
+        # Taint audit: reject if any price field found
+        for field in ("price", "bid", "ask", "mid", "spread", "volume", "price_history_url"):
+            if field in clean_package:
+                raise RuntimeError(
+                    f"Taint detected in clean package for {market_id}: field '{field}' present"
+                )
+
         # Compute hashes
         package_hash = hashlib.sha256(
             json.dumps(clean_package, sort_keys=True, default=str).encode("utf-8")

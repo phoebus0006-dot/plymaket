@@ -219,9 +219,10 @@ class EventStore:
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        # Atomic file creation to avoid multi-process race
         if not self.path.is_file():
-            self.path.write_text("", encoding="utf-8")
+            fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            os.close(fd)
         fh = open(self.path, "r+b")
 
         try:

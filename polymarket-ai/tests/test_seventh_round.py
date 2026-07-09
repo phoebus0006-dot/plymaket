@@ -5,6 +5,7 @@ import os
 import tempfile
 import time
 from datetime import datetime, timezone
+import hashlib
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from typing import Any
 import pytest
 
 from phase0.market_universe import ingest_market_record, ingest_market_universe, load_market_universe_json
+from phase0.package_validator import validate_package
 from phase0.schemas import (
     MarketUniverseRecord,
     Resolution,
@@ -19,6 +21,8 @@ from phase0.schemas import (
     ResolutionStatus,
     ForecastLock,
     ForecastMode,
+    PackageArtifact,
+    CleanForecastPackage,
 )
 from phase0.state import (
     EventStore,
@@ -144,7 +148,11 @@ class TestBlindForecastRunnerIntegration:
             "outcomes": ["Yes", "No"],
             "package_created_at": datetime.now(timezone.utc).isoformat(),
         }
-        fc, prov = runner.run("M001", pkg, ForecastMode.CHEAP_BASELINE)
+        clean_pkg = validate_package(pkg)
+        canon = clean_pkg.model_dump(mode="json")
+        pkg_hash = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
+        artifact = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1)
+        fc, prov = runner.run("M001", artifact, ForecastMode.CHEAP_BASELINE)
         assert fc.p_yes == 0.63
         assert prov["package_hash"] != ""
         assert prov["input_hash"] != ""
@@ -167,7 +175,11 @@ class TestBlindForecastRunnerIntegration:
             "outcomes": ["Yes", "No"],
             "package_created_at": datetime.now(timezone.utc).isoformat(),
         }
-        fc, prov = runner.run("M001", pkg, ForecastMode.BETTER_BASELINE)
+        clean_pkg = validate_package(pkg)
+        canon = clean_pkg.model_dump(mode="json")
+        pkg_hash = hashlib.sha256(json.dumps(canon, sort_keys=True, default=str).encode()).hexdigest()
+        artifact = PackageArtifact(package=clean_pkg, package_hash=pkg_hash, artifact_version=1)
+        fc, prov = runner.run("M001", artifact, ForecastMode.BETTER_BASELINE)
         assert prov["model_id"] == "model-x"
         assert prov["model_version"] == "2.0"
         assert prov["prompt_version"] == "v2"

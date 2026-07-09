@@ -103,15 +103,15 @@ class TestForecastLock:
         p.write_text(json.dumps(data), encoding="utf-8")
 
         fc_original = make_forecast()
-        lock = lock_forecast(
-            experiments_root=str(tmp_path),
-            experiment_id="P0-TEST",
-            market_id="M001",
-            package={"market_id": "M001", "test": "data"},
-            forecast=fc_original,
-            forecast_mode=ForecastMode.CHEAP_BASELINE,
-        )
-        assert lock.forecast_hash != lock.forecast_artifact_hash
+        with pytest.raises(RuntimeError, match="Lock forecast consistency check failed"):
+            lock_forecast(
+                experiments_root=str(tmp_path),
+                experiment_id="P0-TEST",
+                market_id="M001",
+                package={"market_id": "M001", "test": "data"},
+                forecast=fc_original,
+                forecast_mode=ForecastMode.CHEAP_BASELINE,
+            )
 
     def test_find_latest_version(self, tmp_path: Path):
         fc = make_forecast()
