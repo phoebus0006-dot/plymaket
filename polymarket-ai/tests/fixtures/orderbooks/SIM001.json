@@ -1,0 +1,8 @@
+{
+    "market_id": "SIM001",
+    "bid": 0.65,
+    "ask": 0.75,
+    "mid": 0.70,
+    "spread": 0.10,
+    "volume": 1000.0
+}

@@ -1,0 +1,112 @@
+[
+    {
+        "market_id": "REAL-M001",
+        "question": "Will the Fed cut interest rates at the June 2026 FOMC meeting?",
+        "description": "Market on whether the Federal Reserve will lower the federal funds rate at the June 2026 FOMC meeting.",
+        "resolution_rules": "Resolves Yes if the Fed announces a rate cut at the June 2026 meeting. Resolves No otherwise.",
+        "close_time": "2026-06-17T18:00:00+00:00",
+        "category": "Economics",
+        "subcategory": "Monetary Policy",
+        "source": "synthetic_real_format",
+        "tags": ["fed", "interest_rates", "fomc"]
+    },
+    {
+        "market_id": "REAL-M002",
+        "question": "Will WHO declare the end of the COVID-19 public health emergency by Dec 2026?",
+        "description": "Market on WHO declaration status.",
+        "resolution_rules": "Resolves Yes if WHO has officially declared the end of the COVID-19 PHEIC by Dec 31, 2026.",
+        "close_time": "2026-12-31T23:59:59+00:00",
+        "category": "Health",
+        "subcategory": "Pandemics",
+        "source": "synthetic_real_format",
+        "tags": ["covid", "who", "public_health"]
+    },
+    {
+        "market_id": "REAL-M003",
+        "question": "Will SpaceX successfully launch Starship to orbit by Dec 2026?",
+        "description": "Market on SpaceX Starship reaching orbit.",
+        "resolution_rules": "Resolves Yes if a Starship vehicle reaches a stable Earth orbit (at least one complete orbit) by Dec 31, 2026.",
+        "close_time": "2026-12-31T23:59:59+00:00",
+        "category": "Technology",
+        "subcategory": "Space",
+        "source": "synthetic_real_format",
+        "tags": ["spacex", "starship", "space"]
+    },
+    {
+        "market_id": "REAL-M004",
+        "question": "Will the US GDP growth rate exceed 3% in Q3 2026?",
+        "description": "Market on US GDP growth.",
+        "resolution_rules": "Resolves Yes if the annualized Q3 2026 US GDP growth rate (advance estimate) is 3.0% or higher.",
+        "close_time": "2026-10-30T12:00:00+00:00",
+        "category": "Economics",
+        "subcategory": "GDP",
+        "source": "synthetic_real_format",
+        "tags": ["gdp", "us_economy"]
+    },
+    {
+        "market_id": "REAL-M005",
+        "question": "Will a major AI company announce a model with >90% on MMLU by Dec 2026?",
+        "description": "Market on AI benchmark progress.",
+        "resolution_rules": "Resolves Yes if OpenAI, Google DeepMind, Anthropic, or Meta announces a model exceeding 90% on MMLU-Pro benchmark by Dec 31, 2026.",
+        "close_time": "2026-12-31T23:59:59+00:00",
+        "category": "Technology",
+        "subcategory": "AI",
+        "source": "synthetic_real_format",
+        "tags": ["ai", "mmlu", "benchmark"]
+    },
+    {
+        "market_id": "REAL-M006",
+        "question": "Will the S&P 500 close above 7000 by Dec 2026?",
+        "description": "Market on S&P 500 index level.",
+        "resolution_rules": "Resolves Yes if the S&P 500 closes at or above 7000 on any trading day before Dec 31, 2026.",
+        "close_time": "2026-12-31T20:00:00+00:00",
+        "category": "Economics",
+        "subcategory": "Markets",
+        "source": "synthetic_real_format",
+        "tags": ["sp500", "stock_market"]
+    },
+    {
+        "market_id": "REAL-M007",
+        "question": "Will a new COVID-19 variant be designated a variant of concern by WHO in 2026?",
+        "description": "Market on new COVID variants.",
+        "resolution_rules": "Resolves Yes if WHO designates a new SARS-CoV-2 variant as a Variant of Concern (VOC) in 2026.",
+        "close_time": "2026-12-31T23:59:59+00:00",
+        "category": "Health",
+        "subcategory": "Infectious Disease",
+        "source": "synthetic_real_format",
+        "tags": ["covid", "variant", "who"]
+    },
+    {
+        "market_id": "REAL-M008",
+        "question": "Will the EU implement a digital euro pilot by Dec 2026?",
+        "description": "Market on CBDC adoption.",
+        "resolution_rules": "Resolves Yes if the European Central Bank launches a digital euro pilot program by Dec 31, 2026.",
+        "close_time": "2026-12-31T23:59:59+00:00",
+        "category": "Economics",
+        "subcategory": "CBDC",
+        "source": "synthetic_real_format",
+        "tags": ["cbdc", "euro", "ecb"]
+    },
+    {
+        "market_id": "REAL-M009",
+        "question": "Will the global average temperature exceed 1.5C above pre-industrial levels in 2026?",
+        "description": "Market on climate change metrics.",
+        "resolution_rules": "Resolves Yes if the global annual average temperature for 2026 exceeds 1.5C above pre-industrial levels per NASA or NOAA data.",
+        "close_time": "2027-01-15T23:59:59+00:00",
+        "category": "Climate",
+        "subcategory": "Temperature",
+        "source": "synthetic_real_format",
+        "tags": ["climate", "temperature", "global_warming"]
+    },
+    {
+        "market_id": "REAL-M010",
+        "question": "Will a US state pass a comprehensive AI regulation law by Dec 2026?",
+        "description": "Market on AI regulation.",
+        "resolution_rules": "Resolves Yes if any US state legislature passes and the governor signs a comprehensive AI regulation bill by Dec 31, 2026.",
+        "close_time": "2026-12-31T23:59:59+00:00",
+        "category": "Technology",
+        "subcategory": "Regulation",
+        "source": "synthetic_real_format",
+        "tags": ["ai", "regulation", "us_politics"]
+    }
+]

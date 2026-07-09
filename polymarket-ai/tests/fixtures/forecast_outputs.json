@@ -1,0 +1,58 @@
+{
+    "M001": {
+        "market_id": "M001",
+        "forecast_cutoff": "2025-06-01T00:00:00+00:00",
+        "forecast_mode": "CHEAP_BASELINE",
+        "p_yes": 0.63,
+        "interval_50": [0.56, 0.70],
+        "interval_80": [0.44, 0.77],
+        "top_drivers": ["Recent AI capabilities progress"],
+        "counterarguments": ["Historical overestimation of AI timelines"],
+        "critical_unknowns": ["Future funding levels for AI research"],
+        "rules_confidence": "MEDIUM",
+        "research_cost_usd": 0.0,
+        "latency_seconds": 0.0
+    },
+    "M002": {
+        "market_id": "M002",
+        "forecast_cutoff": "2025-06-01T00:00:00+00:00",
+        "forecast_mode": "CHEAP_BASELINE",
+        "p_yes": 0.45,
+        "interval_50": [0.38, 0.52],
+        "interval_80": [0.28, 0.61],
+        "top_drivers": ["Inflation trends"],
+        "counterarguments": ["Labor market tightness"],
+        "critical_unknowns": ["Geopolitical shocks"],
+        "rules_confidence": "MEDIUM",
+        "research_cost_usd": 0.0,
+        "latency_seconds": 0.0
+    },
+    "SIM001": {
+        "market_id": "SIM001",
+        "forecast_cutoff": "2025-06-01T00:00:00+00:00",
+        "forecast_mode": "CHEAP_BASELINE",
+        "p_yes": 0.70,
+        "interval_50": [0.62, 0.77],
+        "interval_80": [0.50, 0.85],
+        "top_drivers": ["Simulation test driver"],
+        "counterarguments": ["Simulation counterargument"],
+        "critical_unknowns": ["Simulation unknowns"],
+        "rules_confidence": "MEDIUM",
+        "research_cost_usd": 0.0,
+        "latency_seconds": 0.0
+    },
+    "REAL-M001": {
+        "market_id": "REAL-M001",
+        "forecast_cutoff": "2025-06-01T00:00:00+00:00",
+        "forecast_mode": "CHEAP_BASELINE",
+        "p_yes": 0.58,
+        "interval_50": [0.50, 0.66],
+        "interval_80": [0.40, 0.75],
+        "top_drivers": ["Inflation trajectory", "Labor market conditions"],
+        "counterarguments": ["Sticky services inflation"],
+        "critical_unknowns": ["Geopolitical shocks"],
+        "rules_confidence": "MEDIUM",
+        "research_cost_usd": 0.0,
+        "latency_seconds": 0.0
+    }
+}

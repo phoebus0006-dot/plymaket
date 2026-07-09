@@ -1,0 +1,14 @@
+{
+    "M001": {
+        "market_id": "M001",
+        "resolved_at": "2025-12-31T00:00:00+00:00",
+        "outcome": "YES",
+        "p_yes_actual": 1.0
+    },
+    "M002": {
+        "market_id": "M002",
+        "resolved_at": "2025-12-31T00:00:00+00:00",
+        "outcome": "NO",
+        "p_yes_actual": 0.0
+    }
+}

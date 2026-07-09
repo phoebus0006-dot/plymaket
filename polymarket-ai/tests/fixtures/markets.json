@@ -1,0 +1,4 @@
+[
+    {"id": "M001", "question": "Will AI surpass human-level reasoning by 2030?", "outcomes": ["Yes", "No"]},
+    {"id": "M002", "question": "Will the Fed cut rates in 2025?", "outcomes": ["Yes", "No"]}
+]

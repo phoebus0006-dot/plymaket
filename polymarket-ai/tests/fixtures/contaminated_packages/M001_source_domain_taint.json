@@ -1,0 +1,15 @@
+{
+    "market_id": "M001",
+    "question": "Will AI surpass human-level reasoning by 2030?",
+    "description": "Test with domain contamination",
+    "resolution_source": "https://example.com/resolution",
+    "outcomes": ["Yes", "No"],
+    "evidence": [
+        {
+            "published_at": "2025-05-01T00:00:00+00:00",
+            "source_url": "https://polymarket.com/event/ai-timeline",
+            "claim": "Market data from Polymarket"
+        }
+    ],
+    "package_created_at": "2025-05-15T00:00:00+00:00"
+}
