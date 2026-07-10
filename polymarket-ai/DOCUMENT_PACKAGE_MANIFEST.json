@@ -1,0 +1,62 @@
+{
+  "package_name": "plymaket-documentation-baseline",
+  "created_at_utc": "2026-07-10T17:21:24.015993+00:00",
+  "source_design": "Polymarket AI Forecasting System V3.1",
+  "repository": "https://github.com/phoebus0006-dot/plymaket",
+  "implementation_baseline_under_review": "3ba56f4",
+  "audit_disposition": "NOT_ACCEPTED_BLOCKERS_OPEN",
+  "files": [
+    {
+      "path": "DOCS_INDEX.md",
+      "sha256": "2387e3a4f6b28a8d099584ee147bb94522fbdc474f19951c5ef799c5a0405bd1"
+    },
+    {
+      "path": "docs/01_PRODUCT_REQUIREMENTS.md",
+      "sha256": "8d309ce2073ccf0b97cfbc2290b09a54ddb3a3a922edc0fa92424a2c221c7f32"
+    },
+    {
+      "path": "docs/02_SYSTEM_ARCHITECTURE.md",
+      "sha256": "7ce13c8b97e8c8d4b5e5cd7b6b0b38f08ed2d9b46bb348fc0cf6d940a666673c"
+    },
+    {
+      "path": "docs/03_DATA_CONTRACTS_AND_PROVENANCE.md",
+      "sha256": "8aed0e2a762e643b0004ec77376b7e061546375adb1942a5c807a1d6678895aa"
+    },
+    {
+      "path": "docs/04_EXPERIMENT_PROTOCOL.md",
+      "sha256": "e9815c860826725b4a28b4cdaf0eb9aefc25bb6fe7e98d7fa1f6f0b3e214fd6f"
+    },
+    {
+      "path": "docs/05_STATE_MACHINE_AND_CONCURRENCY.md",
+      "sha256": "01f00a1e69d09ba63c89bfb6ee2302548a4a995b7fe137201296e9bc65f53a8e"
+    },
+    {
+      "path": "docs/06_TEST_AND_ACCEPTANCE.md",
+      "sha256": "4c836f3d6a048c6de5a790de05d6673ad4341ef1991e0c1456411c5258fd485b"
+    },
+    {
+      "path": "docs/07_ROADMAP_AND_PROGRESS.md",
+      "sha256": "6d086074af3a125ff572ffc4ecbddd6098712fdc10bfb1d3e09e9abdcc1ba2a7"
+    },
+    {
+      "path": "docs/08_AUDIT_PLAYBOOK.md",
+      "sha256": "530b4a6b315235eb089dd6dde7c3435fb2cd3dbddb9e02381bad64c0e47f2e38"
+    },
+    {
+      "path": "docs/09_HANDOVER_GUIDE.md",
+      "sha256": "44c0f0a282f6c18da9ca08b74ebdad6eda348ae989d1bf29fbfa6b630815c21d"
+    },
+    {
+      "path": "docs/TRACEABILITY_MATRIX.md",
+      "sha256": "8e97c039e2154a45119e56593b93835bfc3989fe470f0977014920e87c9baf10"
+    },
+    {
+      "path": "docs/adr/ADR-0001-RESEARCH-PRICE-SEPARATION.md",
+      "sha256": "0abcca7e60b8c0d44986697d88d70feb772e3d7fecb342f6c68934274ccff4c9"
+    },
+    {
+      "path": "docs/adr/ADR-0002-APPEND-ONLY-EVENT-HISTORY.md",
+      "sha256": "731b7d6d1dd2bbac8dec692c139c89cef94549e72e48725c34e8c5b7a01673ac"
+    }
+  ]
+}
